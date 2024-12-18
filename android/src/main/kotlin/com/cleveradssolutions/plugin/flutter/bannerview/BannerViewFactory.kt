@@ -1,27 +1,27 @@
 package com.cleveradssolutions.plugin.flutter.bannerview
 
 import android.content.Context
-import com.cleveradssolutions.plugin.flutter.CASBridge
-import io.flutter.embedding.engine.plugins.FlutterPlugin
-import io.flutter.plugin.common.BinaryMessenger
-import io.flutter.plugin.common.EventChannel
-import io.flutter.plugin.common.MethodChannel
+import com.cleveradssolutions.plugin.flutter.bridge.manager.MediationManagerMethodHandler
+import io.flutter.embedding.engine.plugins.FlutterPlugin.FlutterPluginBinding
 import io.flutter.plugin.common.StandardMessageCodec
 import io.flutter.plugin.platform.PlatformView
 import io.flutter.plugin.platform.PlatformViewFactory
 
-class BannerViewFactory(private val bridgeProvider: () -> CASBridge?, private val binaryMessenger: BinaryMessenger): PlatformViewFactory(StandardMessageCodec.INSTANCE) {
-    private val channel: EventChannel =
-            EventChannel(binaryMessenger, "com.cleveradssolutions.cas.ads.flutter.bannerview")
-    private val listener = BannerViewEventListener()
+class BannerViewFactory(
+    binding: FlutterPluginBinding,
+    private val managerHandler: MediationManagerMethodHandler
+) : PlatformViewFactory(StandardMessageCodec.INSTANCE) {
 
-    init {
-        channel.setStreamHandler(listener)
-    }
+    private val methodHandler = BannerMethodHandler(binding)
 
     override fun create(context: Context, viewId: Int, args: Any?): PlatformView {
-        val creationParams = args as Map<String?, Any?>?
-
-        return BannerView(context, viewId, creationParams, bridgeProvider, binaryMessenger, listener)
+        return BannerView(
+            context,
+            viewId,
+            args as Map<*, *>?,
+            managerHandler.manager,
+            methodHandler
+        )
     }
+
 }

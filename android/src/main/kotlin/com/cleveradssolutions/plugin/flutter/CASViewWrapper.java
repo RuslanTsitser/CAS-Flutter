@@ -19,6 +19,7 @@ import androidx.annotation.MainThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.WorkerThread;
 
+import com.cleveradssolutions.mediation.ContextService;
 import com.cleversolutions.ads.AdError;
 import com.cleversolutions.ads.AdSize;
 import com.cleversolutions.ads.AdStatusHandler;
@@ -27,6 +28,7 @@ import com.cleversolutions.ads.MediationManager;
 import com.cleversolutions.ads.android.CASBannerView;
 import com.cleveradssolutions.sdk.base.CASHandler;
 
+@Deprecated
 public final class CASViewWrapper implements AdViewListener {
     private static final int AD_POSITION_TOP_CENTER = 0;
     private static final int AD_POSITION_TOP_LEFT = 1;
@@ -44,10 +46,10 @@ public final class CASViewWrapper implements AdViewListener {
     private static final int AD_SIZE_LINE = 7;
 
     @NonNull
-    private final Activity activity;
+    private final ContextService contextService;
 
     private CASBannerView view;
-    private CASCallback unityCallback;
+    private CASViewWrapperListener listener;
     private int activeSizeId = 0;
     public boolean isNeedSafeInsets = true;
 
@@ -108,8 +110,8 @@ public final class CASViewWrapper implements AdViewListener {
      */
     private final View.OnLayoutChangeListener layoutChangeListener;
 
-    public CASViewWrapper(@NonNull Activity activity) {
-        this.activity = activity;
+    public CASViewWrapper(@NonNull ContextService contextService) {
+        this.contextService = contextService;
 
         layoutChangeListener = (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
             boolean viewBoundsChanged = left != oldLeft || right != oldRight || bottom != oldBottom || top != oldTop;
@@ -127,12 +129,16 @@ public final class CASViewWrapper implements AdViewListener {
     }
 
     @MainThread
-    public void createView(MediationManager manager, CASCallback unityListener, int sizeCode) {
+    public void createView(MediationManager manager, CASViewWrapperListener listener, int sizeCode) {
         if (sizeCode == 0)
             return;
 
+        Activity activity = contextService.getActivityOrNull();
+        if (activity == null)
+            return;
+
+        this.listener = listener;
         activeSizeId = sizeCode;
-        unityCallback = unityListener;
         view = new CASBannerView(activity, manager);
         view.setVisibility(View.GONE);
         view.setAdListener(this);
@@ -191,10 +197,13 @@ public final class CASViewWrapper implements AdViewListener {
     public void destroy() {
         if (view != null) {
             CASHandler.INSTANCE.main(() -> {
-                activity.getWindow()
-                        .getDecorView()
-                        .getRootView()
-                        .removeOnLayoutChangeListener(layoutChangeListener);
+                Activity activity = contextService.getActivityOrNull();
+                if (activity != null) {
+                    activity.getWindow()
+                            .getDecorView()
+                            .getRootView()
+                            .removeOnLayoutChangeListener(layoutChangeListener);
+                }
                 if (view != null) {
                     try {
                         ViewParent parent = view.getParent();
@@ -215,24 +224,24 @@ public final class CASViewWrapper implements AdViewListener {
 
     @Override
     public void onAdViewLoaded(@NonNull CASBannerView view) {
-        unityCallback.onLoaded();
+        listener.onLoaded();
     }
 
     @Override
     public void onAdViewFailed(@NonNull CASBannerView view, @NonNull AdError error) {
-        unityCallback.onFailed(error.getCode());
+        listener.onFailed(error.getCode());
     }
 
     @Override
     public void onAdViewPresented(@NonNull CASBannerView view, @NonNull AdStatusHandler info) {
         refreshViewPosition(view);
-        unityCallback.onShown();
-        unityCallback.onImpression(info);
+        listener.onShown();
+        listener.onImpression(info);
     }
 
     @Override
     public void onAdViewClicked(@NonNull CASBannerView view) {
-        unityCallback.onClicked();
+        listener.onClicked();
     }
 
     @MainThread
@@ -241,6 +250,10 @@ public final class CASViewWrapper implements AdViewListener {
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT);
         final int targetPos = activePos;
+        Activity activity = contextService.getActivityOrNull();
+        if (activity == null)
+            return;
+
         final DisplayMetrics display = activity.getResources().getDisplayMetrics();
         final float screenDensity = display.density;
 
@@ -333,7 +346,7 @@ public final class CASViewWrapper implements AdViewListener {
         }
 
         view.setLayoutParams(adParams);
-        unityCallback.onRect(offsetXPx, offsetYPx, adWidthPx, adHeightPx);
+        listener.onRect(offsetXPx, offsetYPx, adWidthPx, adHeightPx);
     }
 
     private AdSize getSizeByCode(final int sizeId) {
@@ -342,16 +355,20 @@ public final class CASViewWrapper implements AdViewListener {
                 return AdSize.BANNER;
             case AD_SIZE_ADAPTIVE:
                 int width = Math.min(getScreenWidth(), AdSize.LEADERBOARD.getWidth());
-                return AdSize.getAdaptiveBanner(activity, width);
+                return AdSize.getAdaptiveBanner(contextService.getContext(), width);
             case AD_SIZE_SMART:
-                return AdSize.getSmartBanner(activity);
+                return AdSize.getSmartBanner(contextService.getContext());
             case AD_SIZE_LEADER:
                 return AdSize.LEADERBOARD;
             case AD_SIZE_MREC:
                 return AdSize.MEDIUM_RECTANGLE;
             case AD_SIZE_FULL_WIDTH:
-                return AdSize.getAdaptiveBanner(activity, getScreenWidth());
+                return AdSize.getAdaptiveBanner(contextService.getContext(), getScreenWidth());
             case AD_SIZE_LINE:
+                Activity activity = contextService.getActivityOrNull();
+                if (activity == null)
+                    return AdSize.BANNER;
+
                 WindowManager windowManager = activity.getWindowManager();
                 Display display = windowManager.getDefaultDisplay();
                 //Point realSize = new Point();
@@ -405,11 +422,14 @@ public final class CASViewWrapper implements AdViewListener {
     }
 
     private DisplayMetrics getScreenMetrics() {
+        DisplayMetrics displayMetrics = new DisplayMetrics();
+        Activity activity = contextService.getActivityOrNull();
+        if (activity == null)
+            return displayMetrics;
         WindowManager windowManager = activity.getWindowManager();
         Display display = windowManager.getDefaultDisplay();
         // Point size = new Point();
         // display.getRealSize(size); // Get screen with cutout size
-        DisplayMetrics displayMetrics = new DisplayMetrics();
         display.getMetrics(displayMetrics); // Get screen without cutout size
         return displayMetrics;
     }
