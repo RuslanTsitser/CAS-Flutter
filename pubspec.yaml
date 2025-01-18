@@ -24,8 +24,8 @@ flutter:
       android:
         package: com.cleveradssolutions.plugin.flutter
         pluginClass: CASFlutter
-      ios:
-        pluginClass: CASFlutter
+      # ios:
+      #   pluginClass: CASFlutter
 
 topics:
   - ads
