@@ -3,6 +3,17 @@ plugins {
     id "kotlin-android"
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id "dev.flutter.flutter-gradle-plugin"
+    id("com.cleveradssolutions.gradle-plugin") version "3.9.9"
+}
+
+cas {
+    adapters {
+        googleAds = true
+        // Include more adapters here
+    }
+    // Instead of defining each adapter separately,
+    // you can simply include the list of recommended adapters in one line:
+    // includeOptimalAds = true
 }
 
 def localProperties = new Properties()
@@ -25,7 +36,7 @@ if (flutterVersionName == null) {
 
 android {
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -45,7 +56,7 @@ android {
         applicationId "com.cleveradssolutions.plugin.flutter.example"
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
-        minSdk = flutter.minSdkVersion
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
@@ -62,8 +73,4 @@ android {
 
 flutter {
     source '../..'
-}
-
-dependencies {
-    implementation("com.cleveradssolutions:cas-families:3.9.2")
 }

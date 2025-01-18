@@ -1,58 +1,34 @@
-import Foundation
 import CleverAdsSolutions
+import Foundation
 
-public class FlutterAppReturnCallback : CASAppReturnDelegate, FlutterCaller {
-    
-    private let viewController: UIViewController
-    var flutterCaller: completion?
-    
-    init(viewController: UIViewController) {
-        self.viewController = viewController
+class FlutterAppReturnCallback: CASAppReturnDelegate {
+    private var handler: MethodHandler?
+
+    func setMethodHandler(handler: MethodHandler) {
+        self.handler = handler
     }
-    
-    func setFlutterCaller(caller: @escaping(completion)) {
-        flutterCaller = caller
+
+    func willShown(ad adStatus: CASImpression) {
+        handler?.invokeMethod("OnAppReturnAdShown")
     }
-    
-    func onLoaded() {
-        
+
+    func didPayRevenue(for ad: CASImpression) {
+        handler?.invokeMethod("OnAppReturnAdImpression", ad.toDict())
     }
-    
-    func onFailed(error: String?) {
-        
+
+    func didShowAdFailed(error: String) {
+        handler?.invokeMethod("OnAppReturnAdFailedToShow", error)
     }
-    
-    func onShown() {
-        flutterCaller?("OnAppReturnAdShown", nil)
+
+    func didClickedAd() {
+        handler?.invokeMethod("OnAppReturnAdClicked")
     }
-    
-    func onImpression(for impression: CASImpression) {
-        flutterCaller?("OnAppReturnAdImpression", impression.toDict())
+
+    func didClosedAd() {
+        handler?.invokeMethod("OnAppReturnAdClosed")
     }
-    
-    func onShowFailed(message: String) {
-        var args = [String: Any]()
-        args["message"] = message
-        flutterCaller?("OnAppReturnAdFailedToShow", args)
-    }
-    
-    func onClicked() {
-        flutterCaller?("OnAppReturnAdClicked", nil)
-    }
-    
-    func onComplete() {
-        
-    }
-    
-    func onClosed() {
-        flutterCaller?("OnAppReturnAdClosed", nil)
-    }
-    
-    func OnRect(x: Int, y: Int, width: Int, height: Int) {
-        
-    }
-    
-    public func viewControllerForPresentingAppReturnAd() -> UIViewController {
-        return viewController
+
+    func viewControllerForPresentingAppReturnAd() -> UIViewController {
+        return Util.findRootViewController()!
     }
 }

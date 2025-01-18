@@ -1,14 +1,14 @@
 //
-//  CASBannerView.swift
+//  CASView.swift
 //  clever_ads_solutions
 //
-//  Created by Владислав Горик on 06.12.2023.
+//  Copyright © 2024 CleverAdsSolutions LTD, CAS.AI. All rights reserved.
 //
 
 import Foundation
 import CleverAdsSolutions
 
-class CASView : CASBannerDelegate{
+class CASView: CASBannerDelegate {
     private var bannerView: CASBannerView
     private var view: UIViewController
     private var callback: FlutterBannerCallback
