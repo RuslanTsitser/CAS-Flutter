@@ -4,21 +4,27 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../ad_impression.dart';
 import '../../ad_size.dart';
 import '../../internal/ad_size_impl.dart';
 import '../../internal/mapped_object.dart';
+import '../../sdk/screen/internal/ad_mapped_object.dart';
 import '../ad_view_listener.dart';
 import '../banner_widget.dart';
 
 const String _viewType = '<cas-banner-view>';
 
-class BannerWidgetStateImpl extends BannerWidgetState with MappedObjectImpl {
-  AdViewListener? _listenerField;
+class BannerWidgetStateImpl extends BannerWidgetState
+    with MappedObjectImpl, AdMappedObject {
+  AdViewListener? _adListenerField;
 
-  AdViewListener? get _listener => _listenerField ?? widget.listener;
+  AdViewListener? get _adListener =>
+      _adListenerField ??
+      widget.adListener ??
+      // ignore: deprecated_member_use_from_same_package
+      widget.listener;
 
   AdSize? _size;
+  AdSize? _newSize;
   bool _sizeChanged = false;
 
   double _width = 0;
@@ -31,11 +37,51 @@ class BannerWidgetStateImpl extends BannerWidgetState with MappedObjectImpl {
 
     final size = widget.size;
     if (size is FutureAdSize) {
-      size.future.then((value) => setState(() {
-            _size = value;
-          }));
+      size.future.then((value) {
+        setState(() {
+          _size = value;
+        });
+      });
     } else {
       _size = size;
+    }
+  }
+
+  @override
+  void didUpdateWidget(BannerWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateSize();
+  }
+
+  void _updateSize() async {
+    AdSize size = widget.size;
+    if (size is FutureAdSize) {
+      size = await size.future;
+    }
+    if (size != _size) {
+      switch (defaultTargetPlatform) {
+        case TargetPlatform.iOS:
+          setState(() {
+            _newSize = size;
+            _sizeChanged = true;
+            _size = null;
+          });
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_sizeChanged) {
+              setState(() {
+                _sizeChanged = false;
+                _size = _newSize;
+              });
+            }
+          });
+          break;
+        default:
+          setState(() {
+            _size = size;
+          });
+          // ignore: deprecated_member_use_from_same_package
+          invokeMethod('setSize', _sizeToMap(size, widget.maxWidthDpi));
+      }
     }
   }
 
@@ -43,28 +89,30 @@ class BannerWidgetStateImpl extends BannerWidgetState with MappedObjectImpl {
   Future<dynamic> handleMethodCall(MethodCall call) async {
     switch (call.method) {
       case 'onAdViewLoaded':
-        _listener?.onLoaded();
+        if (_sizeChanged) {
+          _sizeChanged = false;
+
+          setState(() {
+            _size = _newSize;
+          });
+        }
+
+        _adListener?.onAdViewLoaded?.call();
         break;
       case 'onAdViewFailed':
-        _listener?.onFailed(call.arguments['error']);
+        _adListener?.onAdViewFailed?.call(call.arguments['error']);
         break;
       case 'onAdViewPresented':
-        _listener?.onAdViewPresented();
-        final data = call.arguments;
-        _listener?.onImpression(AdImpression(
-          data['adType'] as int,
-          data['cpm'] as double,
-          data['networkName'] as String,
-          data['priceAccuracy'] as int,
-          data['versionInfo'] as String,
-          data['creativeIdentifier'] as String?,
-          data['identifier'] as String,
-          data['impressionDepth'] as int,
-          data['lifetimeRevenue'] as double,
-        ));
+        // ignore: deprecated_member_use_from_same_package
+        _adListener?.onAdViewPresented();
         break;
       case 'onAdViewClicked':
-        _listener?.onClicked();
+        _adListener?.onAdViewClicked?.call();
+        break;
+
+      case 'onAdImpression':
+        widget.onImpressionListener
+            ?.onAdImpression(getContentInfoFromCall(call));
         break;
 
       case 'updateWidgetSize':
@@ -90,12 +138,15 @@ class BannerWidgetStateImpl extends BannerWidgetState with MappedObjectImpl {
     if (size == null) {
       return const SizedBox.shrink();
     }
+    // ignore: deprecated_member_use_from_same_package
     if (size == AdSize.Smart) {
       size = AdSize.getSmartBanner(context);
     }
 
     Map<String, dynamic> creationParams = <String, dynamic>{
       'id': id,
+      'casId': widget.casId,
+      // ignore: deprecated_member_use_from_same_package
       'size': _sizeToMap(size, widget.maxWidthDpi),
       'isAutoloadEnabled': widget.isAutoloadEnabled,
       'refreshInterval': widget.refreshInterval,
@@ -147,14 +198,19 @@ class BannerWidgetStateImpl extends BannerWidgetState with MappedObjectImpl {
   }
 
   @override
-  Future<void> dispose() {
-    super.dispose();
-    return invokeMethod('dispose');
+  Future<String> getCASId() async {
+    final String? casId = await invokeMethod<String>('getCASId');
+    return casId ?? '';
+  }
+
+  @override
+  Future<void> setCASId(String casId) {
+    return invokeMethod('setCASId', {'casId': casId});
   }
 
   @override
   void setAdListener(AdViewListener listener) {
-    _listenerField = listener;
+    _adListenerField = listener;
   }
 
   @override
@@ -162,15 +218,18 @@ class BannerWidgetStateImpl extends BannerWidgetState with MappedObjectImpl {
     if (size is FutureAdSize) {
       size = await size.future;
     }
-    _size = size;
-    _sizeChanged = true;
-    return invokeMethod('setSize', _sizeToMap(size, widget.maxWidthDpi));
+    if (size != _size) {
+      _newSize = size;
+      _sizeChanged = true;
+      // ignore: deprecated_member_use_from_same_package
+      return invokeMethod('setSize', _sizeToMap(size, widget.maxWidthDpi));
+    }
   }
 
   @override
-  Future<bool> isAdReady() async {
-    final bool? isAdReady = await invokeMethod<bool>('isAdReady');
-    return isAdReady ?? false;
+  Future<bool> isLoaded() async {
+    final bool? isLoaded = await invokeMethod<bool>('isLoaded');
+    return isLoaded ?? false;
   }
 
   @override
@@ -182,6 +241,11 @@ class BannerWidgetStateImpl extends BannerWidgetState with MappedObjectImpl {
   @override
   Future<void> setAutoloadEnabled(bool isEnabled) {
     return invokeMethod('setAutoloadEnabled', {'isEnabled': isEnabled});
+  }
+
+  @override
+  Future<void> load() {
+    return invokeMethod('load');
   }
 
   @override
@@ -197,16 +261,14 @@ class BannerWidgetStateImpl extends BannerWidgetState with MappedObjectImpl {
 
   @override
   Future<void> disableAdRefresh() {
-    return invokeMethod('disableBannerRefresh');
+    return invokeMethod('disableAdRefresh');
   }
 
   @override
-  Future<void> loadNextAd() {
-    if (_sizeChanged) {
-      _sizeChanged = false;
-      setState(() {});
-    }
-    return invokeMethod('loadNextAd');
+  Future<void> dispose() {
+    super.dispose();
+    _adListenerField = null;
+    return invokeMethod('dispose');
   }
 
   Map<String, dynamic> _sizeToMap(AdSize size, int? maxWidthDpi) {
@@ -215,6 +277,7 @@ class BannerWidgetStateImpl extends BannerWidgetState with MappedObjectImpl {
       'height': size.height,
       'mode': (size as AdSizeBase).mode,
       'maxWidthDpi': maxWidthDpi,
+      // ignore: deprecated_member_use_from_same_package
       'isAdaptive': size == AdSize.Adaptive
     };
   }

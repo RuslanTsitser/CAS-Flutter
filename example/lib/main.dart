@@ -2,6 +2,8 @@ import 'package:clever_ads_solutions/clever_ads_solutions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+const String _casId = 'demo';
+
 void main() {
   runApp(const MyApp());
 }
@@ -24,20 +26,25 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    implements AdLoadCallback, OnDismissListener {
+class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey<BannerWidgetState> _bannerKey = GlobalKey();
-  MediationManager? _manager;
 
-  bool _isReady = false;
-  bool _isInterstitialReady = false;
-  bool _isRewardedReady = false;
+  final CASInterstitial _interstitial = CASInterstitial.create(_casId);
+  final CASRewarded _rewarded = CASRewarded.create(_casId);
+
   String? _sdkVersion;
 
   @override
   void initState() {
     super.initState();
-    _initialize();
+    _initializeCAS();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    _interstitial.dispose();
+    _rewarded.dispose();
   }
 
   @override
@@ -64,37 +71,26 @@ class _HomeScreenState extends State<HomeScreen>
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
               child: Column(
                 children: [
-                  BannerWidget(
-                    key: _bannerKey,
-                    listener: BannerListener('banner'),
-                  ),
+                  LayoutBuilder(builder: (_, BoxConstraints constraints) {
+                    return BannerWidget(
+                      key: _bannerKey,
+                      casId: _casId,
+                      adListener: _getBannerListener(),
+                      onImpressionListener: _getImpressionListener('Banner'),
+                      size: AdSize.getAdaptiveBanner(constraints.maxWidth),
+                    );
+                  }),
                   ElevatedButton(
                     child: const Text('Load next ad on upper widget'),
-                    onPressed: () => _bannerKey.currentState?.loadNextAd(),
-                  ),
-                  BannerWidget(
-                    size: AdSize.leaderboard,
-                    refreshInterval: 20,
-                    listener: BannerListener('leaderboard'),
+                    onPressed: () => _bannerKey.currentState?.load(),
                   ),
                   ElevatedButton(
-                    onPressed: _isInterstitialReady ? _showInterstitial : null,
+                    onPressed: _showInterstitial,
                     child: const Text('Show interstitial'),
                   ),
                   ElevatedButton(
-                    onPressed: _isRewardedReady ? _showRewarded : null,
+                    onPressed: _showRewarded,
                     child: const Text('Show rewarded'),
-                  ),
-                  BannerWidget(
-                    size: AdSize.mediumRectangle,
-                    refreshInterval: 60,
-                    listener: BannerListener('mediumRectangle'),
-                  ),
-                  LayoutBuilder(
-                    builder: (_, BoxConstraints constraints) => BannerWidget(
-                      size: AdSize.getAdaptiveBanner(constraints.maxWidth),
-                      listener: BannerListener('adaptive'),
-                    ),
                   ),
                 ],
               ),
@@ -105,27 +101,28 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  void _initialize() {
+  void _initializeCAS() {
     // Set Ads Settings
     CAS.settings.setDebugMode(true);
     CAS.settings.setTaggedAudience(Audience.notChildren);
 
     // Set Manual loading mode to disable auto requests
-    // CAS.settings.setLoadingMode(LoadingManagerMode.manual);
+    // CAS.settings.setLoadingMode(LoadingMode.Manual);
 
     // Initialize SDK
-    _manager = CAS
+    CAS
         .buildManager()
-        .withCasId('demo')
+        .withCasId(_casId)
         .withTestMode(true)
-        .withAdTypes(AdTypeFlags.banner |
-            AdTypeFlags.interstitial |
-            AdTypeFlags.rewarded)
-        .withConsentFlow(ConsentFlow.create()
-            .withDismissListener(this)
-            .withPrivacyPolicy('https://example.com/'))
+        .withConsentFlow(ConsentFlow.create().withDismissListener(
+          OnDismissListener((ConsentStatus status) {
+            logDebug('Consent flow dismissed: $status');
+          }),
+        ).withPrivacyPolicy('https://example.com/'))
         .withCompletionListener(_onCASInitialized)
         .build();
+
+    _loadAds();
   }
 
   void _onCASInitialized(InitConfig initConfig) async {
@@ -136,114 +133,69 @@ class _HomeScreenState extends State<HomeScreen>
     }
     logDebug('Ad manager initialized');
 
-    setState(() {
-      _isReady = true;
-    });
-
-    _manager?.setAdLoadCallback(this);
-
     final String sdkVersion = await CAS.getSDKVersion();
     setState(() {
       _sdkVersion = sdkVersion;
     });
   }
 
-  @override
-  void onConsentFlowDismissed(int status) {
-    logDebug('Consent flow dismissed: $status');
+  void _loadAds() {
+    _interstitial.contentCallback = _getAdContentCallback('Interstitial');
+    _interstitial.impressionListener = _getImpressionListener('Interstitial');
+    _interstitial.load();
+
+    _rewarded.contentCallback = _getAdContentCallback('Rewarded');
+    _rewarded.impressionListener = _getImpressionListener('Rewarded');
+    _rewarded.load();
   }
 
-  @override
-  void onAdLoaded(AdType adType) {
-    if (adType == AdType.Interstitial) {
-      setState(() {
-        _isInterstitialReady = true;
-      });
-    } else if (adType == AdType.Rewarded) {
-      setState(() {
-        _isRewardedReady = true;
-      });
+  void _showInterstitial() async {
+    if (await _interstitial.isLoaded()) {
+      _interstitial.show();
+    } else {
+      logDebug('Interstitial ad not ready to show');
     }
   }
 
-  @override
-  void onAdFailedToLoad(AdType adType, String? error) {
-    logDebug('Ad ${adType.name} failed to load: $error');
+  void _showRewarded() async {
+    if (await _rewarded.isLoaded()) {
+      _rewarded.show(OnRewardEarnedListener((ad) async {
+        logDebug('Rewarded ad earned reward: ${await ad.getSourceName()}');
+      }));
+    } else {
+      logDebug('Rewarded ad not ready to show');
+    }
   }
 
-  void _showInterstitial() {
-    _manager?.showInterstitial(AdListener('Interstitial'));
+  AdViewListener _getBannerListener() {
+    return AdViewListener(
+      onAdViewLoaded: () => logDebug('Banner ad loaded!'),
+      onAdViewFailed: (message) => logDebug('Banner failed! $message'),
+      onAdViewPresented: () => logDebug('Banner ad presented!'),
+      onAdViewClicked: () => logDebug('Banner ad clicked!'),
+    );
   }
 
-  void _showRewarded() {
-    _manager?.showRewarded(AdListener('Rewarded'));
-  }
-}
-
-class AdListener extends AdCallback {
-  final String? _name;
-
-  AdListener(this._name);
-
-  @override
-  void onClicked() {
-    logDebug('$_name ad was pressed!');
-  }
-
-  @override
-  void onClosed() {
-    logDebug('$_name ad was closed!');
+  ScreenAdContentCallback _getAdContentCallback(String name) {
+    return ScreenAdContentCallback(
+      onAdLoaded: (ad) async =>
+          logDebug('$name ad loaded: ${await ad.getSourceName()}'),
+      onAdFailedToLoad: (_, error) =>
+          logDebug('$name ad failed to load: $error'),
+      onAdShowed: (ad) async =>
+          logDebug('$name ad showed: ${await ad.getSourceName()}'),
+      onAdFailedToShow: (_, error) =>
+          logDebug('$name ad failed to show: $error'),
+      onAdClicked: (ad) async =>
+          logDebug('$name ad clicked: ${await ad.getSourceName()}'),
+      onAdDismissed: (ad) async =>
+          logDebug('$name ad dismissed: ${await ad.getSourceName()}'),
+    );
   }
 
-  @override
-  void onComplete() {
-    logDebug('$_name ad was complete!');
-  }
-
-  @override
-  void onImpression(AdImpression? adImpression) {
-    logDebug('$_name ad did impression: $adImpression!');
-  }
-
-  @override
-  void onShowFailed(String? message) {
-    logDebug('$_name ad failed to show: $message!');
-  }
-
-  @override
-  void onShown() {
-    logDebug('$_name ad shown!');
-  }
-}
-
-class BannerListener extends AdViewListener {
-  final String _name;
-
-  BannerListener(this._name);
-
-  @override
-  void onAdViewPresented() {
-    logDebug('Banner $_name ad was presented!');
-  }
-
-  @override
-  void onClicked() {
-    logDebug('Banner $_name ad was pressed!');
-  }
-
-  @override
-  void onFailed(String? message) {
-    logDebug('Banner $_name error! $message');
-  }
-
-  @override
-  void onImpression(AdImpression? adImpression) {
-    logDebug('Banner $_name impression: $adImpression');
-  }
-
-  @override
-  void onLoaded() {
-    logDebug('Banner $_name ad was loaded!');
+  OnAdImpressionListener _getImpressionListener(String name) {
+    return OnAdImpressionListener((ad) async =>
+        logDebug('$name ad impression: ${await ad.getSourceName()}'));
   }
 }
 

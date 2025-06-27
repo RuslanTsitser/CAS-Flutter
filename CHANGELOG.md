@@ -1,3 +1,43 @@
+## 0.8.5
+- Wraps 4.1.2 [Android](https://github.com/cleveradssolutions/CAS-Android/releases) and [iOS](https://github.com/cleveradssolutions/CAS-iOS/releases) SDK.
+
+## 0.8.4
+- Hotfix the native [4.1.0.1 iOS](https://github.com/cleveradssolutions/CAS-iOS/releases).
+
+## 0.8.3
+- Wraps 4.1.0 [Android](https://github.com/cleveradssolutions/CAS-Android/releases) and [iOS](https://github.com/cleveradssolutions/CAS-iOS/releases) SDK.
+- Resolved all Flutter/Dart static analysis warnings.
+
+## 0.8.2
+### Features
+- Wraps [iOS](https://github.com/cleveradssolutions/CAS-iOS/releases) 4.0.2.1 SDK.
+### Bug Fixes
+- [iOS] Fixed an issue with invalid argument types in the `getSourceId` and `getRevenuePrecision` methods of `AdContentInfo`.
+
+## 0.8.1
+### Features
+- Made methods in `ScreenAdContentCallback` and `AdViewListener` optional.
+### Bug Fixes
+- Fixed an issue with invalid argument types for ad errors.
+
+## 0.8.0
+### Features
+- Wraps [Android](https://github.com/cleveradssolutions/CAS-Android/releases) and [iOS](https://github.com/cleveradssolutions/CAS-iOS/releases) 4.0.2 SDK.
+### Changes
+- Please check the updated Wiki for details about the CAS 4 release.
+- All ad formats are now managed using a **CAS ID string** with the new `CASAppOpen`, `CASInterstitial`, and `CASRewarded` ad objects.
+  Read more about the new implementation below.
+  Previously, ad management required working with a `MediationManager` instance.
+  You can now preload and cache multiple instances of each ad format, reducing latency and improving ad display performance.
+- All ad formats have `OnAdImpressionListener` to collect impression data via new `AdContentInfo` structure.
+- Added Autoload mode for `CASAppOpen`, `CASInterstitial` and `CASRewarded` ad instances.
+- Added automatic initialization of the **Tenjin SDK** when the API key is provided in the CAS SDK initialization parameters.
+- `AdError.description` now provides more detailed error information.
+  A single error code may include multiple detailed messages.
+### Bug Fixes
+- Fixed an issue with the wrong arguments in the `setGender` and `setLoadingMode` methods.
+- Fixed an error on call `withUserId` method.
+
 ## 0.7.6
 ### Features
 - Wraps [Android](https://github.com/cleveradssolutions/CAS-Android/releases) and [iOS](https://github.com/cleveradssolutions/CAS-iOS/releases) 3.9.9 SDK.

@@ -71,12 +71,15 @@ class AdsSettingsImpl extends AdsSettings {
   @override
   Future<void> setCCPAStatus(CCPAStatus status) {
     switch (status) {
+      // ignore: deprecated_member_use_from_same_package
       case CCPAStatus.UNDEFINED:
         status = CCPAStatus.undefined;
         break;
+      // ignore: deprecated_member_use_from_same_package
       case CCPAStatus.OPT_OUT_SALE:
         status = CCPAStatus.optOutSale;
         break;
+      // ignore: deprecated_member_use_from_same_package
       case CCPAStatus.OPT_IN_SALE:
         status = CCPAStatus.optInSale;
         break;
@@ -109,19 +112,24 @@ class AdsSettingsImpl extends AdsSettings {
     return _channel.invokeMethod("setDebugMode", {"enable": isEnable});
   }
 
+  @Deprecated(
+      "This method is not working correctly on iOS, is no longer maintained, and should not be used")
   @override
   Future<void> addTestDeviceId(String deviceId) {
     return _channel.invokeMethod("addTestDeviceId", {"deviceId": deviceId});
   }
 
   @override
-  Future<void> setTestDeviceId(String deviceIds) {
-    return _channel.invokeMethod("setTestDeviceIds", {"devices": deviceIds});
+  Future<void> setTestDeviceId(String deviceId) {
+    return _channel.invokeMethod("setTestDeviceIds", {
+      "deviceIds": [deviceId]
+    });
   }
 
   @override
   Future<void> setTestDeviceIds(Set<String> deviceIds) {
-    return _channel.invokeMethod("setTestDeviceIds", {"devices": deviceIds});
+    return _channel
+        .invokeMethod("setTestDeviceIds", {"deviceIds": deviceIds.toList()});
   }
 
   @override
